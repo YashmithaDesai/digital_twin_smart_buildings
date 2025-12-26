@@ -165,11 +165,11 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
         <p><strong>Floors:</strong> {Math.max(...layout.zones.map((z) => z.floor))}</p>
         
         {loading && <p className="muted">Loading metrics...</p>}
-        
-        <div className="zones-list">
+      
+      <div className="zones-list">
           <h4>Zones</h4>
-          <ul>
-            {layout.zones.map((zone) => (
+        <ul>
+          {layout.zones.map((zone) => (
               <li
                 key={zone.id}
                 className={selectedZone?.id === zone.id ? "selected" : ""}
@@ -189,10 +189,10 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
                   <div className="zone-metrics">
                     <span className="muted">No metrics available</span>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
+              )}
+            </li>
+          ))}
+        </ul>
         </div>
       </div>
     </div>

@@ -44,6 +44,19 @@
 
 .app-main {
   flex: 1;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Full width for homepage */
+.app-main > .homepage {
+  width: 100%;
+}
+
+/* Constrained width for other pages */
+.app-main > section:not(.homepage),
+.app-main > div:not(.homepage) {
   padding: 1.5rem;
   max-width: 1080px;
   width: 100%;
@@ -51,14 +64,19 @@
 }
 
 .app-footer {
-  padding: 0.75rem 1.5rem;
+  padding: 1rem 2rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  font-size: 0.8rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.3);
-  background: #020617;
-  color: #9ca3af;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--primary-color, #1a2b4a);
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: auto;
+}
+
+[data-theme="dark"] .app-footer {
+  background: #000000;
 }
 
 .app-footer a {

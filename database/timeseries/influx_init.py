@@ -19,16 +19,31 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# Workspace paths
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    # Load .env from project root (3 levels up from this script)
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    env_path = PROJECT_ROOT / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"Loaded environment variables from {env_path}")
+    else:
+        print(f"Warning: .env file not found at {env_path}")
+except ImportError:
+    print("Warning: python-dotenv not installed. Environment variables must be set manually.")
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Workspace paths (PROJECT_ROOT is set above)
 DATA_DIR = PROJECT_ROOT / "data" / "processed"
 DEPLOYMENT_DATA = DATA_DIR / "deployment_data.csv"
 BUILDING_INFO = DATA_DIR / "building_info.json"
@@ -58,10 +73,13 @@ def require_dataset() -> pd.DataFrame:
 
 def load_building_info() -> Dict:
     """Load metadata about the selected building."""
+    # Always use "demo-building" as the building_id for consistency with application queries
+    # The application expects "demo-building" in all queries
     if BUILDING_INFO.exists():
         with open(BUILDING_INFO) as fp:
             info = json.load(fp)
-            info["building_id"] = str(info.get("building_id", "demo-building"))
+            # Override building_id to always use "demo-building"
+            info["building_id"] = "demo-building"
             return info
 
     # Fallback metadata
@@ -97,9 +115,22 @@ def get_influx_client():
     return client, influx_bucket, influx_org
 
 
-def build_points(row: pd.Series, building_id: str) -> List[Point]:
-    """Convert one timestamp row into multiple zone metrics."""
-    timestamp = row["timestamp"].to_pydatetime()
+def build_points(row: pd.Series, building_id: str, timestamp_offset: Optional[timedelta] = None) -> List[Point]:
+    """Convert one timestamp row into multiple zone metrics.
+    
+    Args:
+        row: DataFrame row with timestamp and metrics
+        building_id: Building identifier
+        timestamp_offset: Optional offset to apply to timestamps (for mapping old dates to recent dates)
+    """
+    original_timestamp = row["timestamp"].to_pydatetime()
+    
+    # Apply offset if provided (to map old timestamps to recent dates)
+    if timestamp_offset:
+        timestamp = original_timestamp + timestamp_offset
+    else:
+        timestamp = original_timestamp
+    
     energy = max(row.get("energy", 0.0), 0.0)
     temperature = row.get("temperature")
     humidity = row.get("humidity")
@@ -149,16 +180,42 @@ def build_points(row: pd.Series, building_id: str) -> List[Point]:
     return points
 
 
-def seed_historical_data(df: pd.DataFrame, write_api, bucket: str, org: str, building_id: str, limit: int | None = None) -> None:
-    """Bulk insert historical data into InfluxDB."""
+def seed_historical_data(df: pd.DataFrame, write_api, bucket: str, org: str, building_id: str, limit: int | None = None, use_recent_timestamps: bool = True) -> None:
+    """Bulk insert historical data into InfluxDB.
+    
+    Args:
+        df: DataFrame with historical data
+        write_api: InfluxDB write API
+        bucket: InfluxDB bucket name
+        org: InfluxDB organization
+        building_id: Building identifier
+        limit: Optional limit on number of rows to seed
+        use_recent_timestamps: If True, map old timestamps to recent dates (default: True)
+    """
     total_rows = len(df) if limit is None else min(limit, len(df))
+    
+    # Calculate timestamp offset to map old dates to recent dates
+    timestamp_offset = None
+    if use_recent_timestamps and not df.empty:
+        # Get the first timestamp from the dataset (likely 2016)
+        first_timestamp = df["timestamp"].iloc[0].to_pydatetime()
+        
+        # Map to start 60 days ago (ensures data is in "last 30 days" range)
+        target_start = datetime.now() - timedelta(days=60)
+        
+        # Calculate offset
+        timestamp_offset = target_start - first_timestamp
+        
+        print(f"Mapping timestamps from {first_timestamp.date()} to recent dates (starting {target_start.date()})...")
+        print(f"Timestamp offset: {timestamp_offset.days} days")
+    
     print(f"Seeding {total_rows} rows into InfluxDB...")
 
     batch: List[Point] = []
     batch_size = 5_000
 
     for idx, row in df.head(total_rows).iterrows():
-        batch.extend(build_points(row, building_id))
+        batch.extend(build_points(row, building_id, timestamp_offset))
         if len(batch) >= batch_size:
             write_api.write(bucket=bucket, org=org, record=batch)
             batch = []
@@ -169,14 +226,29 @@ def seed_historical_data(df: pd.DataFrame, write_api, bucket: str, org: str, bui
         write_api.write(bucket=bucket, org=org, record=batch)
 
     print("Historical seed complete.")
+    if timestamp_offset:
+        last_timestamp = df["timestamp"].iloc[min(total_rows - 1, len(df) - 1)].to_pydatetime() + timestamp_offset
+        print(f"Data range: {target_start.date()} to {last_timestamp.date()}")
+        print("✅ Data is now queryable by 'last 30 days' and 'latest metrics' endpoints!")
 
 
 def stream_data(df: pd.DataFrame, write_api, bucket: str, org: str, building_id: str, speed: float, loop: bool) -> None:
-    """Continuously stream data points to InfluxDB to mimic IoT telemetry."""
+    """Continuously stream data points to InfluxDB to mimic IoT telemetry.
+    
+    Uses current timestamps (datetime.now()) for real-time simulation.
+    """
     print(f"Streaming data at {speed}s intervals (loop={loop})...")
+    print("Using current timestamps for real-time simulation...")
+    
     while True:
         for row in df.itertuples(index=False):
-            points = build_points(pd.Series(row._asdict()), building_id)
+            # For streaming, calculate offset to map CSV timestamp to current time
+            row_dict = row._asdict()
+            row_series = pd.Series(row_dict)
+            original_timestamp = row_series["timestamp"].to_pydatetime()
+            # Offset to map original timestamp to now
+            current_time_offset = datetime.now() - original_timestamp
+            points = build_points(row_series, building_id, timestamp_offset=current_time_offset)
             write_api.write(bucket=bucket, org=org, record=points)
             time.sleep(max(speed, 0.01))
         if not loop:
@@ -209,6 +281,11 @@ def parse_args():
         action="store_true",
         help="When streaming, loop over the dataset indefinitely.",
     )
+    parser.add_argument(
+        "--use-original-timestamps",
+        action="store_true",
+        help="Use original timestamps from CSV (default: map to recent dates for queryability).",
+    )
     return parser.parse_args()
 
 
@@ -216,14 +293,21 @@ def main():
     args = parse_args()
     df = require_dataset()
     building_info = load_building_info()
-    building_id = building_info["building_id"]
+    # Always use "demo-building" to match application queries
+    # The application expects "demo-building" in all API endpoints
+    building_id = "demo-building"
+    print(f"Using building_id: {building_id} (overriding value from building_info.json)")
 
     client, bucket, org = get_influx_client()
     write_api = client.write_api(write_options=SYNCHRONOUS)
 
     if args.mode == "seed":
-        seed_historical_data(df, write_api, bucket, org, building_id, limit=args.limit)
+        # By default, use recent timestamps (map old dates to recent dates)
+        # This ensures data is queryable by "last 30 days" endpoints
+        use_recent = not args.use_original_timestamps
+        seed_historical_data(df, write_api, bucket, org, building_id, limit=args.limit, use_recent_timestamps=use_recent)
     else:
+        # Streaming always uses current timestamps
         stream_data(df, write_api, bucket, org, building_id, speed=args.speed, loop=args.loop)
 
     client.close()

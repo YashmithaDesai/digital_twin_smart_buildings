@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 
 import numpy as np
@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.services.data_service import data_service
+from core.services.timeseries_service import timeseries_service
 from core.anomaly_engine.autoencoder_model import autoencoder_reconstruction_error
 from core.anomaly_engine.isolation_forest import isolation_forest_scores
 from core.suggestions_engine.smart_suggestions import suggestion_engine
@@ -61,43 +62,202 @@ def _normalize(series: pd.Series) -> pd.Series:
 
 
 def _build_anomalies(base_df: pd.DataFrame) -> pd.DataFrame:
-    feature_df = base_df.set_index("timestamp")[
-        ["energy", "temperature", "humidity", "occupancy"]
-    ]
+    """Build anomaly detection results from time-series data."""
+    if base_df.empty:
+        return pd.DataFrame(columns=["timestamp", "score", "is_anomaly", "energy", "temperature", "occupancy"])
+    
+    # Ensure timestamp is a column, not index
+    if base_df.index.name == "timestamp" or "timestamp" not in base_df.columns:
+        if "timestamp" not in base_df.columns and base_df.index.name == "timestamp":
+            base_df = base_df.reset_index()
+    
+    # Ensure required columns exist, fill missing ones with defaults
+    required_cols = ["energy", "temperature", "humidity", "occupancy"]
+    for col in required_cols:
+        if col not in base_df.columns:
+            if col == "humidity":
+                # Default humidity if missing (typical indoor range)
+                base_df[col] = 50.0
+            else:
+                base_df[col] = 0.0
+    
+    # Set timestamp as index for feature engineering
+    feature_df = base_df.set_index("timestamp")[required_cols].copy()
     feature_df = _augment_time_features(feature_df)
-
+    
+    # Ensure all feature columns exist
+    missing_features = [col for col in FEATURE_COLS if col not in feature_df.columns]
+    for col in missing_features:
+        feature_df[col] = 0.0
+    
     ae_scores = autoencoder_reconstruction_error(feature_df, FEATURE_COLS)
     if_scores = isolation_forest_scores(feature_df, FEATURE_COLS)
-
+    
     combined = 0.5 * _normalize(ae_scores) + 0.5 * _normalize(if_scores)
     feature_df = feature_df.assign(score=combined).reset_index()
     feature_df["is_anomaly"] = feature_df["score"] >= 0.85
     return feature_df
 
 
+def _load_data_from_influxdb(building_id: str, start_time: datetime, end_time: datetime) -> pd.DataFrame:
+    """
+    Load data from InfluxDB and transform to dashboard format.
+    Returns DataFrame with columns: timestamp, energy, temperature, humidity, occupancy
+    """
+    try:
+        # Query InfluxDB for all metrics across all zones
+        metrics = ["energy", "temperature", "humidity", "occupancy"]
+        df = timeseries_service.get_metrics(
+            building_id=building_id,
+            zone_id=None,  # Get all zones
+            metrics=metrics,
+            start_time=start_time,
+            end_time=end_time,
+            resolution_minutes=15
+        )
+        
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Debug: Print DataFrame structure
+        print(f"📊 InfluxDB raw DataFrame shape: {df.shape}, columns: {list(df.columns)}")
+        if not df.empty:
+            print(f"📊 Sample rows:\n{df.head(3)}")
+        
+        # InfluxDB returns: timestamp, metric, value, zone_id (potentially)
+        # Transform to: timestamp, energy, temperature, humidity, occupancy
+        # Aggregate across zones (sum for energy, mean for others)
+        
+        # Create pivot table with proper aggregation
+        # First, ensure timestamp is datetime
+        if "timestamp" not in df.columns:
+            # Try alternative column names
+            if "_time" in df.columns:
+                df = df.rename(columns={"_time": "timestamp"})
+            elif "time" in df.columns:
+                df = df.rename(columns={"time": "timestamp"})
+            else:
+                print(f"❌ No timestamp column found. Available columns: {list(df.columns)}")
+                return pd.DataFrame()
+        
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            # Ensure timestamps are timezone-aware (UTC) for consistent comparisons
+            if df["timestamp"].dt.tz is None:
+                df["timestamp"] = df["timestamp"].dt.tz_localize("UTC")
+            else:
+                df["timestamp"] = df["timestamp"].dt.tz_convert("UTC")
+        
+        # Ensure we have 'metric' and 'value' columns
+        if "metric" not in df.columns:
+            if "_measurement" in df.columns:
+                df = df.rename(columns={"_measurement": "metric"})
+            else:
+                print(f"❌ No metric column found. Available columns: {list(df.columns)}")
+                return pd.DataFrame()
+        
+        if "value" not in df.columns:
+            if "_value" in df.columns:
+                df = df.rename(columns={"_value": "value"})
+            else:
+                print(f"❌ No value column found. Available columns: {list(df.columns)}")
+                return pd.DataFrame()
+        
+        # Group by timestamp and metric, then aggregate
+        result_rows = []
+        for timestamp in df["timestamp"].unique():
+            ts_data = df[df["timestamp"] == timestamp]
+            row = {"timestamp": timestamp}
+            
+            for metric in metrics:
+                metric_data = ts_data[ts_data["metric"] == metric]["value"]
+                if len(metric_data) > 0:
+                    if metric == "energy":
+                        row[metric] = float(metric_data.sum())
+                    else:
+                        row[metric] = float(metric_data.mean())
+                else:
+                    row[metric] = 0.0
+            
+            result_rows.append(row)
+        
+        if not result_rows:
+            return pd.DataFrame()
+        
+        pivot_df = pd.DataFrame(result_rows)
+        
+        # Ensure all required columns exist
+        for metric in metrics:
+            if metric not in pivot_df.columns:
+                pivot_df[metric] = 0.0
+        
+        # Sort by timestamp
+        pivot_df = pivot_df.sort_values("timestamp").reset_index(drop=True)
+        
+        return pivot_df
+        
+    except Exception as e:
+        print(f"Failed to load from InfluxDB: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame()
+
+
 @router.get("/overview/{building_id}", response_model=DashboardResponse)
 async def dashboard_overview(building_id: str):
     """
     Aggregate KPIs, charts, anomalies, alerts, and suggestions for the monitoring dashboard.
+    Uses InfluxDB as primary data source, falls back to CSV if unavailable.
     """
     try:
-        end_time = datetime.utcnow()
+        # Use timezone-aware datetimes (UTC) to match InfluxDB timestamps
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=48)
 
-        df = data_service.get_data(start_time=start_time, end_time=end_time)
+        # Try InfluxDB first (realistic IoT data - matches production architecture)
+        df = _load_data_from_influxdb(building_id, start_time, end_time)
+        
+        # Fallback to CSV if InfluxDB is empty or unavailable
         if df.empty:
-            df = data_service.get_data()
+            print("⚠️  InfluxDB data empty, falling back to CSV data...")
+            df = data_service.get_data(start_time=start_time, end_time=end_time)
+            if df.empty:
+                df = data_service.get_data()
+            print("✅ Using CSV data as fallback")
+        else:
+            print(f"✅ Loaded {len(df)} records from InfluxDB")
 
         if df.empty:
             raise HTTPException(status_code=404, detail="No telemetry available for dashboard.")
 
+        # Ensure timestamp is datetime
+        if "timestamp" not in df.columns:
+            raise HTTPException(status_code=500, detail="DataFrame missing 'timestamp' column")
+        
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        # Ensure timestamps are timezone-aware (UTC) for consistent comparisons
+        if df["timestamp"].dt.tz is None:
+            df["timestamp"] = df["timestamp"].dt.tz_localize("UTC")
+        else:
+            df["timestamp"] = df["timestamp"].dt.tz_convert("UTC")
+        
         df = df.sort_values("timestamp").reset_index(drop=True)
 
+        # Ensure required columns exist
+        required_metrics = ["energy", "temperature", "occupancy"]
+        for metric in required_metrics:
+            if metric not in df.columns:
+                print(f"⚠️  Warning: Missing column '{metric}', filling with 0.0")
+                df[metric] = 0.0
+        
+        # Add humidity if missing (default to 50%)
+        if "humidity" not in df.columns:
+            df["humidity"] = 50.0
+
         last_24h_start = end_time - timedelta(hours=24)
-        recent_df = df[df["timestamp"] >= last_24h_start]
+        recent_df = df[df["timestamp"] >= last_24h_start].copy()
         if recent_df.empty:
-            recent_df = df.tail(96)  # fallback ~24h assuming 15m data
+            recent_df = df.tail(96).copy()  # fallback ~24h assuming 15m data
 
         chart_points = recent_df.copy()
         chart_points["carbon"] = chart_points["energy"] * EMISSION_FACTOR_T_PER_KWH
@@ -202,5 +362,9 @@ async def dashboard_overview(building_id: str):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to build dashboard: {exc}") from exc
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Dashboard error: {exc}")
+        print(f"Traceback:\n{error_trace}")
+        raise HTTPException(status_code=500, detail=f"Failed to build dashboard: {str(exc)}") from exc
 

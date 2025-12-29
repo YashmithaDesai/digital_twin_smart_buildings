@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import warnings
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import pandas as pd
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.warnings import MissingPivotFunction
+
+# Suppress InfluxDB pivot warnings (they're just optimization suggestions)
+warnings.simplefilter("ignore", MissingPivotFunction)
 
 from core.utils.config import get_settings
 

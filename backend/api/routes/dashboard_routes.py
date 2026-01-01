@@ -98,7 +98,7 @@ def _build_anomalies(base_df: pd.DataFrame) -> pd.DataFrame:
     
     combined = 0.5 * _normalize(ae_scores) + 0.5 * _normalize(if_scores)
     feature_df = feature_df.assign(score=combined).reset_index()
-    feature_df["is_anomaly"] = feature_df["score"] >= 0.85
+    feature_df["is_anomaly"] = feature_df["score"] >= 0.85 #85
     return feature_df
 
 

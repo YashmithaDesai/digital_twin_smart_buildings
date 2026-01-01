@@ -23,27 +23,29 @@ export async function fetchLayout(buildingId) {
 }
 
 export async function fetchAnomalies(buildingId, metric) {
+  const now = new Date();
+  const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const res = await fetch(`${BASE}/anomalies/detect`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       building_id: buildingId,
       metric,
-      start_time: "2025-01-01T08:00:00",
-      end_time: "2025-01-01T18:00:00",
+      start_time: start.toISOString(),
+      end_time: now.toISOString(),
     }),
   });
   if (!res.ok) throw new Error("Failed to fetch anomalies");
   return res.json();
 }
 
-export async function fetchSuggestions(buildingId) {
+export async function fetchSuggestions(buildingId, horizonHours = 24) {
   const res = await fetch(`${BASE}/suggestions/recommend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       building_id: buildingId,
-      horizon_hours: 24,
+      horizon_hours: horizonHours,
     }),
   });
   if (!res.ok) throw new Error("Failed to fetch suggestions");

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fetchLayout } from "../services/api";
 import Layout3D from "../components/Layout3D/Layout3D";
+import InteractiveBuilding3D from "../components/InteractiveBuilding3D/InteractiveBuilding3D";
 import SimulationPanel from "../components/SimulationPanel/SimulationPanel";
 import Dashboard from "../components/Dashboard/Dashboard";
 
@@ -10,7 +11,7 @@ function TwinView() {
 
   useEffect(() => {
     async function init() {
-      const layoutData = await fetchLayout("demo-building");
+      const layoutData = await fetchLayout("9");
       setLayout(layoutData);
     }
     init();
@@ -25,18 +26,18 @@ function TwinView() {
         <div className="decorative-circle circle-4"></div>
       </div>
       <h1>Twin View</h1>
-      
+
       <div className="twin-layout">
-        {layout && <Layout3D layout={layout} buildingId="demo-building" />}
+        <InteractiveBuilding3D buildingId="9" />
       </div>
-      
+
       <div className="twin-simulation">
-        <SimulationPanel 
-          buildingId="demo-building" 
+        <SimulationPanel
+          buildingId="9"
           onSimulationComplete={setSimulation}
         />
       </div>
-      
+
       {simulation && (
         <div className="twin-dashboard">
           <Dashboard simulationData={simulation} />

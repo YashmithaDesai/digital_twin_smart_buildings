@@ -27,6 +27,7 @@ async def get_layout(building_id: str) -> LayoutResponse:
     Later you'll parse BIM or generate graphs in core.layout_generator.
     """
     zones = [
+        # Floor 1
         Zone(
             id="z1",
             name="Open Office",
@@ -48,9 +49,31 @@ async def get_layout(building_id: str) -> LayoutResponse:
             area_m2=40.0,
             neighbors=["z1"],
         ),
+        # Floor 2
+        Zone(
+            id="z4",
+            name="Lounge",
+            floor=2,
+            area_m2=80.0,
+            neighbors=["z5", "z6"],
+        ),
+        Zone(
+            id="z5",
+            name="Private Office",
+            floor=2,
+            area_m2=25.0,
+            neighbors=["z4"],
+        ),
+        Zone(
+            id="z6",
+            name="Server Room",
+            floor=2,
+            area_m2=15.0,
+            neighbors=["z4"],
+        ),
     ]
     return LayoutResponse(
         building_id=building_id,
         zones=zones,
-        metadata={"note": "Static demo layout, replace with BIM graph later."},
+        metadata={"note": "Static demo layout with 2 floors, replace with BIM graph later."},
     )

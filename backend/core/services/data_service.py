@@ -3,7 +3,7 @@ Data service for loading and serving building data.
 Uses the processed Building Data Genome Project 2 dataset.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 import json
@@ -39,6 +39,11 @@ class DataService:
         if data_path.exists():
             self._data = pd.read_csv(data_path, parse_dates=["timestamp"])
             self._data = self._data.sort_values("timestamp").reset_index(drop=True)
+            # Ensure timestamps are timezone-aware (UTC)
+            if self._data["timestamp"].dt.tz is None:
+                self._data["timestamp"] = self._data["timestamp"].dt.tz_localize("UTC")
+            else:
+                self._data["timestamp"] = self._data["timestamp"].dt.tz_convert("UTC")
             print(f"Loaded deployment data: {self._data.shape}")
         else:
             # Generate synthetic data as fallback
@@ -84,7 +89,7 @@ class DataService:
         occupancy = np.clip(occupancy, 0, 1)
         
         return pd.DataFrame({
-            "timestamp": dates,
+            "timestamp": dates.tz_localize("UTC"),
             "energy": energy,
             "temperature": temperature,
             "humidity": np.clip(humidity, 0, 100),
@@ -114,8 +119,12 @@ class DataService:
         
         # Filter by time
         if start_time:
+            if start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=timezone.utc)
             df = df[df["timestamp"] >= start_time]
         if end_time:
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=timezone.utc)
             df = df[df["timestamp"] <= end_time]
         
         # Filter by metrics

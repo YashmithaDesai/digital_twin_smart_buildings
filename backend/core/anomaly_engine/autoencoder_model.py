@@ -21,7 +21,7 @@ def _load_autoencoder() -> Optional[object]:
     """
     model_path = get_model_path("anomaly", "autoencoder.h5")
     try:
-        return tf.keras.models.load_model(model_path)
+        return tf.keras.models.load_model(model_path, compile=False)
     except Exception:
         # In a real system, you'd log this properly.
         return None

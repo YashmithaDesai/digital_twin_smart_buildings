@@ -10,6 +10,15 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
   const [selectedZone, setSelectedZone] = useState(null);
   const [metrics, setMetrics] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedFloors, setSelectedFloors] = useState([]);
+
+  // Initialize selected floors when layout changes
+  useEffect(() => {
+    if (layout?.zones) {
+      const floors = [...new Set(layout.zones.map(z => z.floor))];
+      setSelectedFloors(floors);
+    }
+  }, [layout]);
 
   // Fetch latest metrics for all zones
   useEffect(() => {
@@ -19,10 +28,10 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
       try {
         setLoading(true);
         const data = await fetchLatestMetrics(buildingId);
-        
+
         // Transform metrics data to zone-based structure
         const zoneMetrics = {};
-        
+
         // Create a mapping from API zone IDs to layout zone IDs
         // API might return "zone-1", "zone-2" or "z1", "z2", etc.
         const zoneIdMap = {};
@@ -32,12 +41,12 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
           zoneIdMap[`zone-${index + 1}`] = zone.id; // zone-1, zone-2, etc.
           zoneIdMap[`z${index + 1}`] = zone.id; // z1, z2, etc.
         });
-        
+
         if (data.latest_values) {
           Object.entries(data.latest_values).forEach(([apiZoneId, zoneData]) => {
             // Find matching layout zone ID
             const layoutZoneId = zoneIdMap[apiZoneId] || apiZoneId;
-            
+
             zoneMetrics[layoutZoneId] = {
               energy: zoneData.energy ?? null,
               temperature: zoneData.temperature ?? null,
@@ -45,7 +54,7 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
             };
           });
         }
-        
+
         // Fill in missing zones with default values
         layout.zones.forEach((zone) => {
           if (!zoneMetrics[zone.id]) {
@@ -56,7 +65,7 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
             };
           }
         });
-        
+
         setMetrics(zoneMetrics);
       } catch (error) {
         console.error("Failed to load metrics:", error);
@@ -77,7 +86,7 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
 
     if (layout?.zones) {
       loadMetrics();
-      
+
       // Refresh metrics every 30 seconds
       const interval = setInterval(loadMetrics, 30000);
       return () => clearInterval(interval);
@@ -88,12 +97,23 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
     return <div className="layout-3d loading">Loading layout...</div>;
   }
 
+  const availableFloors = [...new Set(layout.zones.map(z => z.floor))];
+  const filteredZones = layout.zones.filter(z => selectedFloors.includes(z.floor));
+
   const handleZoneClick = (zone) => {
     setSelectedZone(selectedZone?.id === zone.id ? null : zone);
   };
 
   const handleCloseZoneDetails = () => {
     setSelectedZone(null);
+  };
+
+  const handleFloorToggle = (floor) => {
+    setSelectedFloors(prev =>
+      prev.includes(floor)
+        ? prev.filter(f => f !== floor)
+        : [...prev, floor]
+    );
   };
 
   return (
@@ -137,7 +157,7 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
 
           {/* Building 3D structure */}
           <Building3D
-            layout={layout}
+            layout={{ ...layout, zones: filteredZones }}
             metrics={metrics}
             selectedMetric={selectedMetric}
             onZoneClick={handleZoneClick}
@@ -163,13 +183,28 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
         <p><strong>Building ID:</strong> {layout.building_id}</p>
         <p><strong>Total Zones:</strong> {layout.zones.length}</p>
         <p><strong>Floors:</strong> {Math.max(...layout.zones.map((z) => z.floor))}</p>
-        
+
+        {/* Floor Picker */}
+        <div className="floor-picker">
+          <h4>Select Floors</h4>
+          {availableFloors.map(floor => (
+            <label key={floor} className="floor-checkbox">
+              <input
+                type="checkbox"
+                checked={selectedFloors.includes(floor)}
+                onChange={() => handleFloorToggle(floor)}
+              />
+              Floor {floor}
+            </label>
+          ))}
+        </div>
+
         {loading && <p className="muted">Loading metrics...</p>}
-      
-      <div className="zones-list">
-          <h4>Zones</h4>
-        <ul>
-          {layout.zones.map((zone) => (
+
+        <div className="zones-list">
+          <h4>Zones ({filteredZones.length})</h4>
+          <ul>
+            {filteredZones.map((zone) => (
               <li
                 key={zone.id}
                 className={selectedZone?.id === zone.id ? "selected" : ""}
@@ -189,10 +224,10 @@ function Layout3D({ layout, buildingId = "demo-building" }) {
                   <div className="zone-metrics">
                     <span className="muted">No metrics available</span>
                   </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

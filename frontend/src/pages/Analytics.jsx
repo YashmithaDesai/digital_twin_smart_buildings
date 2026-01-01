@@ -26,6 +26,10 @@ function Analytics() {
       }
     }
     init();
+
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(init, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [selectedMetric]);
 
   return (
@@ -37,11 +41,11 @@ function Analytics() {
         <div className="decorative-circle circle-4"></div>
       </div>
       <h1>Analytics</h1>
-      
+
       <div className="metric-selector">
         <label>Select Metric:</label>
-        <select 
-          value={selectedMetric} 
+        <select
+          value={selectedMetric}
           onChange={(e) => setSelectedMetric(e.target.value)}
         >
           <option value="energy">Energy</option>

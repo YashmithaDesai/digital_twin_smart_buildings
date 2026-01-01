@@ -7,7 +7,7 @@ import * as THREE from "three";
 function FloatingElement({ index, baseSize, height, materialProps }) {
   const meshRef = useRef();
   const animationRef = useRef({ time: 0 });
-  
+
   useFrame((state, delta) => {
     animationRef.current.time += delta;
     if (meshRef.current) {
@@ -20,7 +20,7 @@ function FloatingElement({ index, baseSize, height, materialProps }) {
       meshRef.current.rotation.y += delta * 2;
     }
   });
-  
+
   return (
     <Box
       ref={meshRef}
@@ -46,7 +46,7 @@ function Zone3D({ zone, position, metrics, selectedMetric, onClick, isSelected }
   const width = baseSize;
   const height = 0.5; // Fixed height for zones
   const depth = baseSize;
-  
+
   // Determine zone type from name
   const zoneType = useMemo(() => {
     const name = zone.name.toLowerCase();
@@ -112,14 +112,14 @@ function Zone3D({ zone, position, metrics, selectedMetric, onClick, isSelected }
   // Animate based on zone type
   useFrame((state, delta) => {
     animationRef.current.time += delta;
-    
+
     if (meshRef.current) {
       if (hovered || isSelected) {
         meshRef.current.scale.lerp(new THREE.Vector3(1.1, 1.1, 1.1), 0.1);
       } else {
         meshRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
       }
-      
+
       // Zone-specific animations
       if (zoneType === "corridor") {
         // Pulsing animation for corridor
@@ -288,7 +288,7 @@ function Zone3D({ zone, position, metrics, selectedMetric, onClick, isSelected }
   return (
     <group position={position} ref={meshRef}>
       {renderZoneShape()}
-      
+
       {/* Zone label */}
       {(hovered || isSelected) && (
         <Text

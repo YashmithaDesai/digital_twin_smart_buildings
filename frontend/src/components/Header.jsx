@@ -5,14 +5,35 @@ import "../styles/header.css";
 function Header({ darkMode, toggleDarkMode }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [dropdownTimeout, setDropdownTimeout] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (dropdownTimeout) clearTimeout(dropdownTimeout);
+    };
+  }, [dropdownTimeout]);
+
+  const handleMouseEnter = (itemId, hasDropdown) => {
+    if (hasDropdown) {
+      if (dropdownTimeout) {
+        clearTimeout(dropdownTimeout);
+        setDropdownTimeout(null);
+      }
+      setActiveDropdown(itemId);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => {
+      setActiveDropdown(null);
+    }, 200);
+    setDropdownTimeout(timeout);
+  };
 
   const navItems = [
     { id: "home", label: "Home", path: "/", hasDropdown: false },
@@ -62,8 +83,8 @@ function Header({ darkMode, toggleDarkMode }) {
             <div
               key={item.id}
               className="nav-item-wrapper"
-              onMouseEnter={() => item.hasDropdown && setActiveDropdown(item.id)}
-              onMouseLeave={() => setActiveDropdown(null)}
+              onMouseEnter={() => handleMouseEnter(item.id, item.hasDropdown)}
+              onMouseLeave={handleMouseLeave}
             >
               {item.path ? (
                 <NavLink

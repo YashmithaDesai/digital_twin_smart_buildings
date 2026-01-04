@@ -1,24 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { fetchAnomalies, fetchSuggestions } from "../services/api";
+import { fetchAnomalies, fetchSuggestions, applySuggestion, dismissSuggestion, fetchAppliedActions } from "../services/api";
 import AnomalyDisplay from "../components/AnomalyDisplay/AnomalyDisplay";
 import Suggestions from "../components/Suggestions/Suggestions";
+
 
 function Analytics() {
   const [anomalies, setAnomalies] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [appliedActions, setAppliedActions] = useState([]);
   const [selectedMetric, setSelectedMetric] = useState("energy");
   const [loading, setLoading] = useState(false);
+  const [busySuggestionId, setBusySuggestionId] = useState(null);
 
   useEffect(() => {
     async function init() {
       setLoading(true);
       try {
-        const [anomalyData, suggestionData] = await Promise.all([
+        const [anomalyData, suggestionData, appliedData] = await Promise.all([
           fetchAnomalies("demo-building", selectedMetric),
           fetchSuggestions("demo-building"),
+          fetchAppliedActions("demo-building"),
         ]);
         setAnomalies(anomalyData);
         setSuggestions(suggestionData);
+        setAppliedActions(appliedData);
       } catch (err) {
         console.error("Failed to load analytics:", err);
       } finally {
@@ -31,6 +36,39 @@ function Analytics() {
     const interval = setInterval(init, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [selectedMetric]);
+
+  // Handlers for Suggestions actions
+  const handleApply = async (suggestion) => {
+    setBusySuggestionId(suggestion.id);
+    try {
+      await applySuggestion("demo-building", suggestion);
+      // Refresh suggestions and applied actions
+      const [suggestionData, appliedData] = await Promise.all([
+        fetchSuggestions("demo-building"),
+        fetchAppliedActions("demo-building"),
+      ]);
+      setSuggestions(suggestionData);
+      setAppliedActions(appliedData);
+    } catch (err) {
+      console.error("Failed to apply suggestion:", err);
+    } finally {
+      setBusySuggestionId(null);
+    }
+  };
+
+  const handleDismiss = async (suggestion) => {
+    setBusySuggestionId(suggestion.id);
+    try {
+      await dismissSuggestion("demo-building", suggestion.id, suggestion);
+      // Refresh suggestions
+      const suggestionData = await fetchSuggestions("demo-building");
+      setSuggestions(suggestionData);
+    } catch (err) {
+      console.error("Failed to dismiss suggestion:", err);
+    } finally {
+      setBusySuggestionId(null);
+    }
+  };
 
   return (
     <section className="analytics">
@@ -63,7 +101,13 @@ function Analytics() {
             <AnomalyDisplay anomalies={anomalies} metric={selectedMetric} />
           </div>
           <div className="analytics-section">
-            <Suggestions suggestions={suggestions} />
+            <Suggestions
+              suggestions={suggestions}
+              appliedActions={appliedActions}
+              onApply={handleApply}
+              onDismiss={handleDismiss}
+              busySuggestionId={busySuggestionId}
+            />
           </div>
         </div>
       )}

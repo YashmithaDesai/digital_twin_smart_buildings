@@ -4,6 +4,10 @@ import Home from "./pages/Home.jsx";
 import TwinView from "./pages/TwinView.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import DashboardPage from "./pages/Dashboard.jsx";
+import BuildingOverview from "./pages/BuildingOverview.jsx";
+import ZonesAndFloors from "./pages/ZonesAndFloors.jsx";
+import BuildingSystems from "./pages/BuildingSystems.jsx";
+import Contact from "./pages/Contact.jsx";
 import Header from "./components/Header.jsx";
 
 import "./styles/app.css";
@@ -34,6 +38,10 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/twin" element={<TwinView />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/building-info" element={<BuildingOverview />} />
+          <Route path="/building-info/zones" element={<ZonesAndFloors />} />
+          <Route path="/building-info/systems" element={<BuildingSystems />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </main>
       <footer className="app-footer">

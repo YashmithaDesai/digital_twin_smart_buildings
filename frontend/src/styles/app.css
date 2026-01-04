@@ -880,6 +880,27 @@ section p {
   gap: 1rem;
 }
 
+.filter-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #60a5fa;
+}
+
+.breadcrumb-item {
+  padding: 0.25rem 0.5rem;
+  background: rgba(96, 165, 250, 0.1);
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.breadcrumb-separator {
+  color: #4b5563;
+  font-weight: 300;
+}
+
 .building-pill {
   padding: 0.35rem 0.9rem;
   border-radius: 999px;
@@ -923,6 +944,20 @@ section p {
   font-size: 1.8rem;
   font-weight: 600;
   color: #e5e7eb;
+}
+
+.zone-badge {
+  display: inline-block;
+  margin-left: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .kpi-trend {

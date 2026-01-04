@@ -1,18 +1,25 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "../styles/homepage.css";
 
 function Home() {
-  const [activeBuildingType, setActiveBuildingType] = useState("all");
-  const [buildingName, setBuildingName] = useState("");
+  const navigate = useNavigate();
   const [selectedZone, setSelectedZone] = useState("");
   const [floor, setFloor] = useState("");
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  const buildingTypes = [
-    { id: "all", label: "All Buildings" },
-    { id: "commercial", label: "Commercial" },
-    { id: "residential", label: "Residential" },
+  const zones = [
+    { id: "zone-east", label: "Zone East" },
+    { id: "zone-west", label: "Zone West" },
+    { id: "zone-core", label: "Zone Core" },
+  ];
+
+  const floors = [
+    { id: "1", label: "Floor 1" },
+    { id: "2", label: "Floor 2" },
+    { id: "3", label: "Floor 3" },
+    { id: "4", label: "Floor 4" },
+    { id: "5", label: "Floor 5" },
+    { id: "6", label: "Floor 6" },
   ];
 
   const quickActions = [
@@ -23,8 +30,13 @@ function Home() {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    console.log("Search:", { buildingName, selectedZone, floor });
-    // Add search logic here
+    const queryParams = new URLSearchParams();
+    
+    if (selectedZone) queryParams.append("zone", selectedZone);
+    if (floor) queryParams.append("floor", floor);
+    
+    // Navigate to dashboard with search parameters
+    navigate(`/dashboard?${queryParams.toString()}`);
   };
 
   return (
@@ -37,35 +49,9 @@ function Home() {
             Optimize Your Building's Performance with Digital Twin Technology
           </h1>
 
-          {/* Building Type Tabs */}
-          <div className="building-type-tabs">
-            {buildingTypes.map((type) => (
-              <button
-                key={type.id}
-                className={`building-type-tab ${
-                  activeBuildingType === type.id ? "active" : ""
-                }`}
-                onClick={() => setActiveBuildingType(type.id)}
-              >
-                {type.label}
-              </button>
-            ))}
-          </div>
-
           {/* Search Panel */}
           <div className="search-panel">
             <form onSubmit={handleSearch} className="search-form">
-              <div className="search-field">
-                <label htmlFor="building-name">Building Name</label>
-                <input
-                  id="building-name"
-                  type="text"
-                  placeholder="Search Building..."
-                  value={buildingName}
-                  onChange={(e) => setBuildingName(e.target.value)}
-                />
-              </div>
-
               <div className="search-field">
                 <label htmlFor="zone">Zone</label>
                 <select
@@ -74,74 +60,33 @@ function Home() {
                   onChange={(e) => setSelectedZone(e.target.value)}
                 >
                   <option value="">Select Zone</option>
-                  <option value="zone-a">Zone A</option>
-                  <option value="zone-b">Zone B</option>
-                  <option value="zone-c">Zone C</option>
-                  <option value="zone-d">Zone D</option>
+                  <option value="zone-east">Zone East</option>
+                  <option value="zone-west">Zone West</option>
+                  <option value="zone-core">Zone Core</option>
                 </select>
               </div>
 
               <div className="search-field">
                 <label htmlFor="floor">Floor</label>
-                <div className="location-input-wrapper">
-                  <input
-                    id="floor"
-                    type="text"
-                    placeholder="Floor Number"
-                    value={floor}
-                    onChange={(e) => setFloor(e.target.value)}
-                  />
-                  <span className="location-icon">🏢</span>
-                </div>
+                <select
+                  id="floor"
+                  value={floor}
+                  onChange={(e) => setFloor(e.target.value)}
+                >
+                  <option value="">Select Floor</option>
+                  {floors.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <button
-                type="button"
-                className="more-filters-btn"
-                onClick={() => setShowMoreFilters(!showMoreFilters)}
-                aria-label="More filters"
-              >
-                <span>▼</span> More
-              </button>
 
               <button type="submit" className="search-btn" aria-label="Search">
                 <span className="search-icon">🔍</span>
                 Search
               </button>
             </form>
-
-            {showMoreFilters && (
-              <div className="more-filters-panel">
-                <div className="filter-group">
-                  <label>Energy Range (kWh)</label>
-                  <div className="price-range">
-                    <input type="number" placeholder="Min" />
-                    <span>-</span>
-                    <input type="number" placeholder="Max" />
-                  </div>
-                </div>
-                <div className="filter-group">
-                  <label>Occupancy Level</label>
-                  <select>
-                    <option>Any</option>
-                    <option>Low (0-25%)</option>
-                    <option>Medium (26-50%)</option>
-                    <option>High (51-75%)</option>
-                    <option>Full (76-100%)</option>
-                  </select>
-                </div>
-                <div className="filter-group">
-                  <label>System Type</label>
-                  <select>
-                    <option>All Systems</option>
-                    <option>HVAC</option>
-                    <option>Lighting</option>
-                    <option>Security</option>
-                    <option>Water</option>
-                  </select>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Quick Action Buttons */}

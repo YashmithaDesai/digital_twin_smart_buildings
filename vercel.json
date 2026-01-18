@@ -2,5 +2,12 @@
   "installCommand": "cd frontend && npm ci --include=dev",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
-  "framework": "none"
+  "framework": "vite",
+  "env": {
+    "VITE_API_URL": {
+      "description": "Backend API URL (e.g., https://digital-twin-backend.onrender.com)",
+      "required": true
+    }
+  }
+
 }

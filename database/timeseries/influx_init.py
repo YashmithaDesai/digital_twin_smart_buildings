@@ -118,7 +118,9 @@ def get_influx_client():
             "Create an API token in InfluxDB and export it before running."
         )
 
-    client = InfluxDBClient(url=influx_url, token=influx_token, org=influx_org)
+    # For macOS SSL issues, allow disabling verification (testing only)
+    verify_ssl = os.getenv("INFLUXDB_VERIFY_SSL", "true").lower() != "false"
+    client = InfluxDBClient(url=influx_url, token=influx_token, org=influx_org, verify_ssl=verify_ssl)
     buckets_api = client.buckets_api()
     bucket = buckets_api.find_bucket_by_name(influx_bucket)
     if bucket is None:

@@ -1,0 +1,37 @@
+# Python virtual environment
+backend/venv
+venv
+env
+
+# Data directories (large training/raw data)
+data/
+
+# Python cache
+__pycache__
+*.pyc
+.pytest_cache
+backend/__pycache__
+
+# Node modules (will be installed during build)
+node_modules
+
+# Build outputs
+dist
+build
+
+# Development files
+.git
+.gitignore
+.env.local
+.env.*.local
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

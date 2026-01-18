@@ -3,11 +3,7 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
-  "env": {
-    "VITE_API_URL": {
-      "description": "Backend API URL (e.g., https://digital-twin-backend.onrender.com)",
-      "required": true
-    }
-  }
+  "env": {"VITE_API_URL": "https://digital-twin-4f31.onrender.com/"}
+  
 
 }

@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
 
 from api.api_gateway import include_api_routes
 
+# Load environment variables
+load_dotenv()
 
 def create_app() -> FastAPI:
     """
@@ -18,9 +22,12 @@ def create_app() -> FastAPI:
         ),
     )
 
+    # Configure CORS based on environment
+    allowed_origins = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # tighten later
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

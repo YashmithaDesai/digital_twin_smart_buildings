@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "env": {
+    "VITE_API_URL": {
+      "description": "Backend API URL (e.g., https://digital-twin-backend.onrender.com)",
+      "required": true
+    }
+  }
+}

@@ -2,8 +2,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
+import logging
 
 from core.services.timeseries_service import timeseries_service
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -35,6 +38,7 @@ class HistoricalDataResponse(BaseModel):
 async def query_historical_data(request: HistoricalDataRequest):
     """Query historical time-series data."""
     try:
+        logger.info(f"Historical query: {request.building_id}, metrics={request.metrics}")
         start_time = datetime.fromisoformat(request.start_time.replace("Z", "+00:00"))
         end_time = datetime.fromisoformat(request.end_time.replace("Z", "+00:00"))
         
@@ -69,6 +73,7 @@ async def query_historical_data(request: HistoricalDataRequest):
                 )
             )
         
+        logger.info(f"Returning {len(points)} data points")
         return HistoricalDataResponse(
             building_id=request.building_id,
             points=points,
@@ -76,8 +81,10 @@ async def query_historical_data(request: HistoricalDataRequest):
         )
     
     except ValueError as e:
+        logger.error(f"Invalid datetime format: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid datetime format: {e}")
     except Exception as e:
+        logger.error(f"Failed to query data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to query data: {str(e)}")
 
 
@@ -85,6 +92,8 @@ async def query_historical_data(request: HistoricalDataRequest):
 async def get_latest_metrics(building_id: str, zone_id: Optional[str] = None):
     """Get latest metric values for a building/zone."""
     from core.services.influxdb_service import get_latest_value
+    
+    logger.info(f"Fetching latest metrics for {building_id}/{zone_id}")
     
     metrics = ["temperature", "energy", "occupancy", "co2"]
     
@@ -96,19 +105,43 @@ async def get_latest_metrics(building_id: str, zone_id: Optional[str] = None):
         zone_ids = ["z1", "z2", "z3", "zone-1", "zone-2", "zone-3"]
     
     result = {}
+    found_real_data = False
+    
     for zid in zone_ids:
         result[zid] = {}
         for metric in metrics:
             value = get_latest_value(building_id, zid, metric)
             if value is not None:
                 result[zid][metric] = value
+                found_real_data = True
+        
         # If no real data, provide synthetic defaults for demo
         if not result[zid]:
             import random
+            logger.warning(f"No real data for {zid}, using synthetic defaults")
             result[zid] = {
                 "energy": 100 + random.random() * 50,
                 "temperature": 20 + random.random() * 5,
                 "occupancy": 0.3 + random.random() * 0.4,
             }
     
-    return {"building_id": building_id, "latest_values": result}
+    if found_real_data:
+        logger.info(f"✅ Returning real InfluxDB data for {building_id}")
+    else:
+        logger.warning(f"⚠️  No real data found, returning synthetic defaults")
+    
+    return {
+        "building_id": building_id,
+        "latest_values": result,
+        "data_source": "real" if found_real_data else "synthetic"
+    }
+
+
+@router.get("/health")
+async def check_data_health():
+    """Check InfluxDB connection status."""
+    from core.services.influxdb_service import check_influxdb_health
+    
+    logger.info("Data health check requested")
+    health = await check_influxdb_health()
+    return health

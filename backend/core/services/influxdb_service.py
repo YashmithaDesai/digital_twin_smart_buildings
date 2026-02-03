@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -12,6 +13,9 @@ from influxdb_client.client.warnings import MissingPivotFunction
 warnings.simplefilter("ignore", MissingPivotFunction)
 
 from core.utils.config import get_settings
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 settings = get_settings()
@@ -26,13 +30,19 @@ def get_influx_client() -> InfluxDBClient:
     """Get or create InfluxDB client singleton."""
     global _influx_client
     if _influx_client is None:
-        _influx_client = InfluxDBClient(
-            url=settings.influxdb_url,
-            token=settings.influxdb_token,
-            org=settings.influxdb_org,
-            timeout=30_000,
-            verify_ssl=settings.influxdb_verify_ssl
-        )
+        try:
+            logger.info(f"Creating InfluxDB client: {settings.influxdb_url}")
+            _influx_client = InfluxDBClient(
+                url=settings.influxdb_url,
+                token=settings.influxdb_token,
+                org=settings.influxdb_org,
+                timeout=30_000,
+                verify_ssl=settings.influxdb_verify_ssl
+            )
+            logger.info("InfluxDB client created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create InfluxDB client: {e}")
+            raise
     return _influx_client
 
 
@@ -89,9 +99,9 @@ def write_telemetry_point(
             org=settings.influxdb_org,
             record=point
         )
+        logger.debug(f"Wrote {metric} to InfluxDB: building={building_id}, zone={zone_id}, value={value}")
     except Exception as e:
-        # In production, log this error properly
-        print(f"Failed to write to InfluxDB: {e}")
+        logger.error(f"Failed to write to InfluxDB: {e}")
 
 
 def query_time_series(
@@ -141,7 +151,10 @@ def query_time_series(
         result = query_api.query_data_frame(flux_query)
         
         if result is None or result.empty:
+            logger.warning(f"InfluxDB query returned empty results for building={building_id}, metrics={metrics}")
             return pd.DataFrame()
+        
+        logger.info(f"InfluxDB query successful: {len(result)} rows for building={building_id}")
         
         # Normalize columns
         if "_time" in result.columns:
@@ -150,7 +163,7 @@ def query_time_series(
         return result
         
     except Exception as e:
-        print(f"InfluxDB query failed: {e}")
+        logger.error(f"InfluxDB query failed: {e}", exc_info=True)
         return pd.DataFrame()
 
 
@@ -166,9 +179,33 @@ def get_latest_value(
     df = query_time_series(building_id, zone_id, [metric], start_time, end_time)
     
     if df.empty:
+        logger.warning(f"No recent data found for {metric} in {building_id}/{zone_id}")
         return None
     
     return float(df.iloc[-1]["value"])
+
+
+async def check_influxdb_health() -> Dict[str, Any]:
+    """Check InfluxDB connection and health."""
+    try:
+        client = get_influx_client()
+        # Try a simple health check
+        health = client.api.HealthApi().health()
+        logger.info(f"InfluxDB health check passed: {health.status}")
+        return {
+            "status": "healthy",
+            "provider": "InfluxDB",
+            "url": settings.influxdb_url,
+            "details": str(health.status)
+        }
+    except Exception as e:
+        logger.error(f"InfluxDB health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "provider": "InfluxDB",
+            "url": settings.influxdb_url,
+            "error": str(e)
+        }
 
 
 # Fallback stub function for when InfluxDB is not available

@@ -1,12 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import logging
 from dotenv import load_dotenv
 
 from api.api_gateway import include_api_routes
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 load_dotenv()
+logger.info("Environment variables loaded")
 
 def create_app() -> FastAPI:
     """
@@ -24,6 +33,7 @@ def create_app() -> FastAPI:
 
     # Configure CORS based on environment
     allowed_origins = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
+    logger.info(f"CORS allowed origins: {allowed_origins}")
     
     app.add_middleware(
         CORSMiddleware,
@@ -34,6 +44,7 @@ def create_app() -> FastAPI:
     )
 
     include_api_routes(app)
+    logger.info("API routes initialized")
 
     @app.get("/", tags=["system"])
     async def root() -> dict:

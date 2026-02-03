@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import pandas as pd
+import logging
 
 from core.services.influxdb_service import (
     query_time_series,
     query_time_series_stub,
     write_telemetry_point
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TimeSeriesService:
@@ -23,7 +26,8 @@ class TimeSeriesService:
     ) -> pd.DataFrame:
         """Get time-series metrics for a building/zone."""
         try:
-            return query_time_series(
+            logger.info(f"Attempting InfluxDB query for {building_id}/{zone_id}, metrics={metrics}")
+            df = query_time_series(
                 building_id=building_id,
                 zone_id=zone_id,
                 metrics=metrics,
@@ -31,7 +35,21 @@ class TimeSeriesService:
                 end_time=end_time,
                 resolution_minutes=resolution_minutes
             )
-        except Exception:
+            if not df.empty:
+                logger.info(f"✅ InfluxDB query successful: {len(df)} records returned")
+                return df
+            else:
+                logger.warning(f"⚠️  InfluxDB query returned empty results, using synthetic fallback")
+                return query_time_series_stub(
+                    building_id=building_id,
+                    zone_id=zone_id,
+                    metrics=metrics,
+                    start_time=start_time,
+                    end_time=end_time,
+                    resolution_minutes=resolution_minutes
+                )
+        except Exception as e:
+            logger.error(f"❌ InfluxDB query failed: {e}, using synthetic fallback", exc_info=True)
             # Fallback to stub if InfluxDB unavailable
             return query_time_series_stub(
                 building_id=building_id,

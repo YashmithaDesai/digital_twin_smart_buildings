@@ -30,11 +30,14 @@ class ChatResponse(BaseModel):
 
 # Hugging Face Inference API configuration
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_KEY")
-if not HF_API_TOKEN:
-    raise ValueError("HUGGINGFACE_API_KEY environment variable is required")
-
 HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
-HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+
+def get_hf_headers():
+    """Lazily get HuggingFace headers, check API key only when needed"""
+    token = os.getenv("HUGGINGFACE_API_KEY")
+    if not token:
+        raise ValueError("HUGGINGFACE_API_KEY environment variable is required")
+    return {"Authorization": f"Bearer {token}"}
 
 # Initialize data service
 data_service = DataService()
@@ -109,7 +112,7 @@ async def chat_completion(request: ChatRequest):
             
             response = await client.post(
                 HF_API_URL,
-                headers=HF_HEADERS,
+                headers=get_hf_headers(),
                 json={"inputs": prompt}
             )
             
@@ -240,7 +243,7 @@ async def check_huggingface_health():
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(
                 HF_API_URL,
-                headers=HF_HEADERS,
+                headers=get_hf_headers(),
                 json={"inputs": "Hello"}
             )
             if response.status_code == 200:

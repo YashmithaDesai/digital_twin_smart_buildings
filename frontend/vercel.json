@@ -4,6 +4,6 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "env": {
-    "VITE_API_URL": "https://digital-twin-4f31.onrender.com"
+    "VITE_API_URL": "https://digital-twin-smart-buildings.onrender.com/"
   }
 }

@@ -129,15 +129,15 @@ def query_time_series(
         start_iso = start_time.astimezone(timezone.utc).isoformat()
         end_iso = end_time.astimezone(timezone.utc).isoformat()
 
-        # Build Flux query - use correct tag names (Building, Zone not building_id, zone_id)
+        # Build Flux query - use correct tag names from InfluxDB schema
         flux_query = f'''
         from(bucket: "{settings.influxdb_bucket}")
           |> range(start: time(v: "{start_iso}"), stop: time(v: "{end_iso}"))
-          |> filter(fn: (r) => r["Building"] == "{building_id}")
+          |> filter(fn: (r) => r["building_id"] == "{building_id}")
         '''
         
         if zone_id:
-            flux_query += f'|> filter(fn: (r) => r["Zone"] == "{zone_id}")'
+            flux_query += f'|> filter(fn: (r) => r["zone_id"] == "{zone_id}")'
         
         if metrics:
             metrics_filter = " or ".join([f'r["_measurement"] == "{m}"' for m in metrics])
@@ -177,7 +177,7 @@ def get_latest_value(
 ) -> Optional[float]:
     """Get the most recent value for a metric."""
     end_time = datetime.utcnow()
-    start_time = end_time - timedelta(hours=1)
+    start_time = end_time - timedelta(days=30)  # Look back 30 days for data
     
     df = query_time_series(building_id, zone_id, [metric], start_time, end_time)
     

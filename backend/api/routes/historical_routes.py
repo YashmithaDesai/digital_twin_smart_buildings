@@ -101,8 +101,8 @@ async def get_latest_metrics(building_id: str, zone_id: Optional[str] = None):
     zone_ids = [zone_id] if zone_id else None
     
     if not zone_ids:
-        # Try common zone ID patterns
-        zone_ids = ["z1", "z2", "z3", "zone-1", "zone-2", "zone-3"]
+        # Use actual zone IDs from InfluxDB data
+        zone_ids = ["zone-core", "zone-east", "zone-west"]
     
     result = {}
     found_real_data = False

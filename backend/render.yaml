@@ -16,6 +16,8 @@ services:
         value: "0.0.0.0"
       - key: API_PORT
         value: "8000"
+      - key: HUGGINGFACE_API_KEY
+        fromGroup: digital_twin_env
     databases:
       - name: postgres
         # Configure database connection in environment variables

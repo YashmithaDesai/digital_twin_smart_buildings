@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { sendChatMessage, getChatModels, checkOllamaHealth } from "../../services/api";
+import { sendChatMessage, getChatModels, checkHuggingFaceHealth } from "../../services/api";
 import "./Chatbot.css";
 
 function Chatbot() {
@@ -13,8 +13,8 @@ function Chatbot() {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [models, setModels] = useState([]);
-    const [selectedModel, setSelectedModel] = useState("llama3.2:latest");
-    const [isOllamaHealthy, setIsOllamaHealthy] = useState(true);
+    const [selectedModel, setSelectedModel] = useState("mistralai/Mistral-7B-Instruct-v0.1");
+    const [isHuggingFaceHealthy, setIsHuggingFaceHealthy] = useState(true);
     const [isMinimized, setIsMinimized] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -28,12 +28,12 @@ function Chatbot() {
         scrollToBottom();
     }, [messages]);
 
-    // Check Ollama health and load models on mount
+    // Check Hugging Face health and load models on mount
     useEffect(() => {
         async function initializeChat() {
             try {
-                const health = await checkOllamaHealth();
-                setIsOllamaHealthy(health.status === "healthy");
+                const health = await checkHuggingFaceHealth();
+                setIsHuggingFaceHealthy(health.status === "healthy");
 
                 if (health.status === "healthy") {
                     const modelsData = await getChatModels();
@@ -44,7 +44,7 @@ function Chatbot() {
                 }
             } catch (error) {
                 console.error("Failed to initialize chat:", error);
-                setIsOllamaHealthy(false);
+                setIsHuggingFaceHealthy(false);
             }
         }
         initializeChat();
@@ -52,7 +52,7 @@ function Chatbot() {
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (!input.trim() || isLoading || !isOllamaHealthy) return;
+        if (!input.trim() || isLoading || !isHuggingFaceHealthy) return;
 
         const userMessage = {
             role: "user",
@@ -80,7 +80,7 @@ function Chatbot() {
         } catch (error) {
             const errorMessage = {
                 role: "assistant",
-                content: "Sorry, I encountered an error. Please make sure Ollama is running and try again.",
+                content: "Sorry, I encountered an error. Please make sure your Hugging Face API key is valid and try again.",
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, errorMessage]);
@@ -109,7 +109,7 @@ function Chatbot() {
                 <div className="chatbot-minimized-content">
                     <span className="chatbot-icon">💬</span>
                     <span className="chatbot-status">
-                        {isOllamaHealthy ? "Online" : "Offline"}
+                        {isHuggingFaceHealthy ? "Online" : "Offline"}
                     </span>
                 </div>
             </div>
@@ -121,8 +121,8 @@ function Chatbot() {
             <div className="chatbot-header">
                 <div className="chatbot-title">
                     <h3>Building Assistant</h3>
-                    <span className={`status-indicator ${isOllamaHealthy ? "online" : "offline"}`}>
-                        {isOllamaHealthy ? "● Online" : "● Offline"}
+                    <span className={`status-indicator ${isHuggingFaceHealthy ? "online" : "offline"}`}>
+                        {isHuggingFaceHealthy ? "● Online" : "● Offline"}
                     </span>
                 </div>
                 <div className="chatbot-controls">
@@ -177,13 +177,13 @@ function Chatbot() {
                 <div ref={messagesEndRef} />
             </div>
 
-            {!isOllamaHealthy && (
+            {!isHuggingFaceHealthy && (
                 <div className="chatbot-error">
                     <p>
-                        ⚠️ Ollama is not running. Please start Ollama to use the chatbot.
+                        ⚠️ Hugging Face API is not available. Please ensure your API key is configured.
                     </p>
                     <p>
-                        Run: <code>ollama serve</code> in your terminal
+                        Set the HUGGINGFACE_API_KEY environment variable
                     </p>
                 </div>
             )}
@@ -197,16 +197,16 @@ function Chatbot() {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
                         placeholder={
-                            isOllamaHealthy
+                            isHuggingFaceHealthy
                                 ? "Ask about energy optimization, anomalies, or building management..."
-                                : "Chatbot unavailable - Ollama not running"
+                                : "Chatbot unavailable - Hugging Face API not configured"
                         }
-                        disabled={isLoading || !isOllamaHealthy}
+                        disabled={isLoading || !isHuggingFaceHealthy}
                         className="message-input"
                     />
                     <button
                         type="submit"
-                        disabled={isLoading || !isOllamaHealthy || !input.trim()}
+                        disabled={isLoading || !isHuggingFaceHealthy || !input.trim()}
                         className="send-button"
                     >
                         {isLoading ? "..." : "Send"}

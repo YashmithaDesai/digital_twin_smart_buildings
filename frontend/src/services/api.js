@@ -111,9 +111,9 @@ export async function getChatModels() {
   return res.json();
 }
 
-export async function checkOllamaHealth() {
+export async function checkHuggingFaceHealth() {
   const res = await fetch(`${BASE}/chat/health`);
-  if (!res.ok) throw new Error("Failed to check Ollama health");
+  if (!res.ok) throw new Error("Failed to check Hugging Face API health");
   return res.json();
 }
 

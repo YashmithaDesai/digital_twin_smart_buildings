@@ -20,7 +20,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
-    model: str = "llama3.2:latest"  # Default Ollama model
+    model: str = "mistralai/Mistral-7B-Instruct-v0.1"  # Default HuggingFace model
     stream: bool = False
 
 class ChatResponse(BaseModel):
@@ -28,8 +28,13 @@ class ChatResponse(BaseModel):
     model: str
     timestamp: datetime
 
-# Ollama configuration (read from env so deployments can configure reachable host)
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")  # Default Ollama endpoint
+# Hugging Face Inference API configuration
+HF_API_TOKEN = os.getenv("HUGGINGFACE_API_KEY")
+if not HF_API_TOKEN:
+    raise ValueError("HUGGINGFACE_API_KEY environment variable is required")
+
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
+HF_HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 
 # Initialize data service
 data_service = DataService()
@@ -96,27 +101,36 @@ async def chat_completion(request: ChatRequest):
                 "content": msg.content
             })
         
-        # Call Ollama API
+        # Call Hugging Face Inference API
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # Format messages for HuggingFace API
+            prompt = "\n".join([f"{msg['role']}: {msg['content']}" for msg in ollama_messages])
+            prompt += "\nassistant: "
+            
             response = await client.post(
-                f"{OLLAMA_BASE_URL}/api/chat",
-                json={
-                    "model": request.model,
-                    "messages": ollama_messages,
-                    "stream": request.stream
-                }
+                HF_API_URL,
+                headers=HF_HEADERS,
+                json={"inputs": prompt}
             )
             
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Ollama API error: {response.text}"
+                    detail=f"Hugging Face API error: {response.text}"
                 )
             
             result = response.json()
             
+            # Extract text from response
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get("generated_text", "")
+                # Remove the prompt from the response to get only the assistant's answer
+                assistant_response = generated_text.replace(prompt, "").strip()
+            else:
+                assistant_response = "Sorry, I couldn't process that request."
+            
             return ChatResponse(
-                response=result.get("message", {}).get("content", "Sorry, I couldn't process that request."),
+                response=assistant_response,
                 model=request.model,
                 timestamp=datetime.now()
             )
@@ -124,7 +138,7 @@ async def chat_completion(request: ChatRequest):
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=503,
-            detail=f"Could not connect to Ollama: {str(e)}. Make sure Ollama is running."
+            detail=f"Could not connect to Hugging Face API: {str(e)}. Make sure your HUGGINGFACE_API_KEY is set."
         )
     except Exception as e:
         raise HTTPException(
@@ -204,42 +218,35 @@ async def handle_real_time_queries(message: str) -> Optional[str]:
 @router.get("/models")
 async def list_models():
     """
-    List available Ollama models
+    List available Hugging Face models
     """
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-            
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to fetch models: {response.text}"
-                )
-            
-            result = response.json()
-            models = [model["name"] for model in result.get("models", [])]
-            
-            return {"models": models}
-            
-    except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Could not connect to Ollama: {str(e)}. Make sure Ollama is running."
-        )
+    # Return a curated list of fast, lightweight models suitable for building management
+    models = [
+        "mistralai/Mistral-7B-Instruct-v0.1",
+        "meta-llama/Llama-2-7b-chat-hf",
+        "tiiuae/falcon-7b-instruct",
+    ]
+    return {"models": models}
 
 @router.get("/health")
-async def check_ollama_health():
+async def check_huggingface_health():
     """
-    Check if Ollama is running and accessible
+    Check if Hugging Face API is accessible
     """
     try:
+        if not HF_API_TOKEN:
+            return {"status": "unhealthy", "error": "HUGGINGFACE_API_KEY not set"}
+        
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{OLLAMA_BASE_URL}/api/version")
+            response = await client.post(
+                HF_API_URL,
+                headers=HF_HEADERS,
+                json={"inputs": "Hello"}
+            )
             if response.status_code == 200:
-                version = response.json().get("version", "unknown")
-                return {"status": "healthy", "version": version}
+                return {"status": "healthy", "provider": "Hugging Face"}
             else:
-                return {"status": "unhealthy", "error": f"Ollama responded with status {response.status_code}"}
+                return {"status": "unhealthy", "error": f"Hugging Face API responded with status {response.status_code}"}
 
     except httpx.RequestError as e:
-        return {"status": "unhealthy", "error": f"Could not connect to Ollama: {str(e)}"}
+        return {"status": "unhealthy", "error": f"Could not connect to Hugging Face API: {str(e)}"}

@@ -19,4 +19,5 @@ EXPOSE 8000
 
 # Run with gunicorn (production) or uvicorn (development)
 # Use 1 worker for free tier (512MB RAM limit)
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "main:app"]
+# Increase timeout to 120s for InfluxDB queries (default 30s is too short)
+CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--timeout", "120", "--bind", "0.0.0.0:8000", "main:app"]

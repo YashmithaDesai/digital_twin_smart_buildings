@@ -91,7 +91,7 @@ async def query_historical_data(request: HistoricalDataRequest):
 @router.get("/latest/{building_id}")
 async def get_latest_metrics(building_id: str, zone_id: Optional[str] = None):
     """Get latest metric values for a building/zone - OPTIMIZED with bulk query."""
-    from core.services.influxdb_service import get_influxdb_client
+    from core.services.influxdb_service import get_influx_client
     import os
     
     logger.info(f"Fetching latest metrics for {building_id}/{zone_id}")
@@ -104,7 +104,7 @@ async def get_latest_metrics(building_id: str, zone_id: Optional[str] = None):
     
     try:
         # OPTIMIZED: Single bulk query for ALL zones and metrics
-        client = get_influxdb_client()
+        client = get_influx_client()
         bucket = os.getenv("INFLUXDB_BUCKET", "building_telemetry")
         
         # Build filter for all metrics in one query
